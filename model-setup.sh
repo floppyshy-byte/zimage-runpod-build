@@ -111,4 +111,4 @@ else
 fi
 
 # Delegate to the original base-image startup (starts ComfyUI + handler)
-exec "$@"
+exec /start.sh
