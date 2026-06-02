@@ -22,7 +22,8 @@
   },
   "4": {
     "inputs": {
-      "model": ["1", 0]
+      "model": ["1", 0],
+      "shift": 3
     },
     "class_type": "ModelSamplingAuraFlow"
   },
