@@ -142,13 +142,15 @@ def _fetch_image_b64(filename: str, subfolder: str, folder_type: str) -> str:
 def handler(job: dict) -> dict:
     job_input = job.get("input", {})
 
-    # Track whether this request arrived encrypted so we can match the output format
-    was_encrypted = "encrypted" in job_input
+    # Encryption mode: triggered by "encryption": true or legacy "encrypted" field
+    encryption_enabled = job_input.get("encryption") is True or "encrypted" in job_input
+    was_fully_encrypted = "encrypted" in job_input
 
-    # Decrypt payload if it arrived encrypted
-    if was_encrypted:
-        if not _ENCRYPTION_KEY:
-            return {"error": "Received encrypted input but COMFY_ENCRYPTION_KEY is not set"}
+    if encryption_enabled and not _ENCRYPTION_KEY:
+        return {"error": "Encryption is enabled but COMFY_ENCRYPTION_KEY is not set"}
+
+    # Decrypt full payload if it arrived in the legacy "encrypted" field
+    if was_fully_encrypted:
         try:
             job_input = json.loads(_aes_decrypt(job_input["encrypted"]))
         except Exception as exc:
@@ -159,6 +161,21 @@ def handler(job: dict) -> dict:
 
     if not workflow:
         return {"error": "No workflow provided"}
+
+    # Decrypt individual prompt if encryption mode is on and "encrypted_prompt" is provided
+    encrypted_prompt = job_input.get("encrypted_prompt")
+    if encryption_enabled and encrypted_prompt and _ENCRYPTION_KEY:
+        try:
+            decrypted_prompt = _aes_decrypt(encrypted_prompt).decode("utf-8")
+            injected = False
+            for node in workflow.values():
+                if node.get("class_type") == "CLIPTextEncode":
+                    node["inputs"]["text"] = decrypted_prompt
+                    injected = True
+            if not injected:
+                return {"error": "encrypted_prompt provided but no CLIPTextEncode node found in workflow"}
+        except Exception as exc:
+            return {"error": f"Failed to decrypt prompt: {exc}"}
 
     # Upload input images (e.g. for img2img)
     for img in images:
@@ -179,7 +196,7 @@ def handler(job: dict) -> dict:
     except TimeoutError as exc:
         return {"error": str(exc)}
 
-    # Collect output images as base64, encrypting if key is present
+    # Collect output images as base64, encrypting if encryption mode is enabled
     output_images = []
     for node_output in result.get("outputs", {}).values():
         for img_info in node_output.get("images", []):
@@ -188,7 +205,7 @@ def handler(job: dict) -> dict:
                 img_info.get("subfolder", ""),
                 img_info.get("type", "output"),
             )
-            if was_encrypted:
+            if encryption_enabled:
                 enc = _aes_encrypt(b64.encode())
                 output_images.append({"data": enc, "encrypted": True, "type": "png"})
             else:
