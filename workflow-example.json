@@ -1,16 +1,18 @@
 {
   "1": {
     "inputs": {
-      "unet_name": "z_image_turbo_bf16.safetensors"
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
     },
     "class_type": "UNETLoader"
   },
   "2": {
     "inputs": {
-      "clip_name1": "qwen_3_4b.safetensors",
-      "type": "lumina2"
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
     },
-    "class_type": "DualCLIPLoader"
+    "class_type": "CLIPLoader"
   },
   "3": {
     "inputs": {
@@ -20,11 +22,9 @@
   },
   "4": {
     "inputs": {
-      "width": 1024,
-      "height": 1024,
-      "batch_size": 1
+      "model": ["1", 0]
     },
-    "class_type": "EmptySD3LatentImage"
+    "class_type": "ModelSamplingAuraFlow"
   },
   "5": {
     "inputs": {
@@ -35,37 +35,45 @@
   },
   "6": {
     "inputs": {
-      "text": "",
-      "clip": ["2", 0]
+      "conditioning": ["5", 0]
     },
-    "class_type": "CLIPTextEncode"
+    "class_type": "ConditioningZeroOut"
   },
   "7": {
     "inputs": {
-      "seed": 42,
-      "steps": 8,
-      "cfg": 1.5,
-      "sampler_name": "euler",
-      "scheduler": "normal",
-      "denoise": 1.0,
-      "model": ["1", 0],
-      "positive": ["5", 0],
-      "negative": ["6", 0],
-      "latent_image": ["4", 0]
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
     },
-    "class_type": "KSampler"
+    "class_type": "EmptySD3LatentImage"
   },
   "8": {
     "inputs": {
-      "samples": ["7", 0],
+      "seed": 0,
+      "control_after_generate": "randomize",
+      "steps": 8,
+      "cfg": 1.0,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["4", 0],
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "latent_image": ["7", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "9": {
+    "inputs": {
+      "samples": ["8", 0],
       "vae": ["3", 0]
     },
     "class_type": "VAEDecode"
   },
-  "9": {
+  "10": {
     "inputs": {
-      "filename_prefix": "z-image-output",
-      "images": ["8", 0]
+      "filename_prefix": "z-image-turbo",
+      "images": ["9", 0]
     },
     "class_type": "SaveImage"
   }
