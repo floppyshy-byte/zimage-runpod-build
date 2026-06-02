@@ -25,3 +25,4 @@ RUN chmod +x /model-setup.sh
 
 # Wrap the original startup so models are linked before ComfyUI starts
 ENTRYPOINT ["/model-setup.sh"]
+CMD ["/start.sh"]
