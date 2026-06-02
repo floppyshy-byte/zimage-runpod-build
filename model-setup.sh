@@ -3,10 +3,16 @@ set -e
 
 # Symlink Z-Image model files from RunPod's HF cache into ComfyUI model directories.
 #
-# Expected HF repo structure (e.g. floppyshy-byte/z-image-models):
-#   qwen_3_4b.safetensors
-#   z_image_turbo_bf16.safetensors
-#   ae.safetensors
+# Supports two repo structures:
+#   1. Custom repo (files at root):
+#      qwen_3_4b.safetensors
+#      z_image_turbo_bf16.safetensors
+#      ae.safetensors
+#
+#   2. Official Comfy-Org repo (files under split_files/):
+#      split_files/text_encoders/qwen_3_4b.safetensors
+#      split_files/diffusion_models/z_image_turbo_bf16.safetensors
+#      split_files/vae/ae.safetensors
 #
 # These are linked into:
 #   /comfyui/models/text_encoders/
@@ -14,7 +20,7 @@ set -e
 #   /comfyui/models/vae/
 
 HF_CACHE="/runpod-volume/huggingface-cache/hub"
-REPO="${ZIMAGE_HF_REPO:-floppyshy-byte/z-image-models}"
+REPO="${ZIMAGE_HF_REPO:-Comfy-Org/z_image_turbo}"
 REPO_DIR="models--${REPO//\//--}"
 
 link_model() {
@@ -32,6 +38,26 @@ link_model() {
     fi
 }
 
+find_in_cache() {
+    local base="$1"
+    local filename="$2"
+    local subpath="$3"
+
+    # Try root first
+    if [ -f "$base/$filename" ]; then
+        echo "$base/$filename"
+        return 0
+    fi
+
+    # Try split_files/ subdirectory (official Comfy-Org repo structure)
+    if [ -n "$subpath" ] && [ -f "$base/$subpath/$filename" ]; then
+        echo "$base/$subpath/$filename"
+        return 0
+    fi
+
+    return 1
+}
+
 if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
     SNAP=$(cat "$HF_CACHE/$REPO_DIR/refs/main")
     BASE="$HF_CACHE/$REPO_DIR/snapshots/$SNAP"
@@ -39,31 +65,33 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
     echo "[model-setup] Using cached HF snapshot: $SNAP for repo $REPO"
 
     # Text encoder
-    if [ -f "$BASE/qwen_3_4b.safetensors" ]; then
-        link_model "$BASE/qwen_3_4b.safetensors" /comfyui/models/text_encoders
+    SRC=$(find_in_cache "$BASE" "qwen_3_4b.safetensors" "split_files/text_encoders")
+    if [ -n "$SRC" ]; then
+        link_model "$SRC" /comfyui/models/text_encoders
     else
         echo "[model-setup] WARNING: qwen_3_4b.safetensors not found in HF cache"
     fi
 
     # Diffusion model (link to both diffusion_models and unet for compatibility)
-    if [ -f "$BASE/z_image_turbo_bf16.safetensors" ]; then
-        link_model "$BASE/z_image_turbo_bf16.safetensors" /comfyui/models/diffusion_models
-        link_model "$BASE/z_image_turbo_bf16.safetensors" /comfyui/models/unet
+    SRC=$(find_in_cache "$BASE" "z_image_turbo_bf16.safetensors" "split_files/diffusion_models")
+    if [ -n "$SRC" ]; then
+        link_model "$SRC" /comfyui/models/diffusion_models
+        link_model "$SRC" /comfyui/models/unet
     else
         echo "[model-setup] WARNING: z_image_turbo_bf16.safetensors not found in HF cache"
     fi
 
     # VAE
-    if [ -f "$BASE/ae.safetensors" ]; then
-        link_model "$BASE/ae.safetensors" /comfyui/models/vae
+    SRC=$(find_in_cache "$BASE" "ae.safetensors" "split_files/vae")
+    if [ -n "$SRC" ]; then
+        link_model "$SRC" /comfyui/models/vae
     else
         echo "[model-setup] WARNING: ae.safetensors not found in HF cache"
     fi
 
     # Also support GGUF variants if present
-    for gguf in "$BASE"/*.gguf; do
+    for gguf in "$BASE"/*.gguf "$BASE"/split_files/*/*.gguf; do
         [ -e "$gguf" ] || continue
-        # GGUF diffusion models go to diffusion_models, GGUF text encoders to text_encoders
         case "$(basename "$gguf")" in
             *diffusion*|*z_image*)
                 link_model "$gguf" /comfyui/models/diffusion_models

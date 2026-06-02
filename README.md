@@ -47,6 +47,26 @@ docker build -t z-image-worker .
 1. Go to [RunPod Serverless Console](https://www.runpod.io/console/serverless)
 2. Click **New Endpoint**
 3. Under **Source**, connect this GitHub repo (`floppyshy-byte/zimage-runpod-build`)
+
+### Model Options
+
+**Option A — Use official Comfy-Org repo (easiest, ~34.5 GB cache):**
+5. Under **Model Caching**, add: `Comfy-Org/z_image_turbo`
+
+**Option B — Use your own repo (leaner, ~21 GB cache):**
+5. Create a private HF repo and upload only the BF16 files:
+   ```bash
+   huggingface-cli upload your-username/z-image-models \
+     split_files/diffusion_models/z_image_turbo_bf16.safetensors \
+     --repo-type model
+   huggingface-cli upload your-username/z-image-models \
+     split_files/text_encoders/qwen_3_4b.safetensors \
+     --repo-type model
+   huggingface-cli upload your-username/z-image-models \
+     split_files/vae/ae.safetensors \
+     --repo-type model
+   ```
+   Then add `your-username/z-image-models` to Model Caching
 4. Select branch: `main`
 5. Under **Model Caching**, add your HF repo ID (e.g. `your-username/z-image-models`)
 6. GPU: Select **NVIDIA A100** / **RTX A6000** / **RTX 4090** (16GB+ VRAM for BF16)
