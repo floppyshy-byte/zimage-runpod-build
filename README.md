@@ -46,7 +46,7 @@ docker build -t z-image-worker .
 
 1. Go to [RunPod Serverless Console](https://www.runpod.io/console/serverless)
 2. Click **New Endpoint**
-3. Under **Source**, connect this GitHub repo (`sleungcy/z-image`)
+3. Under **Source**, connect this GitHub repo (`floppyshy-byte/zimage-runpod-build`)
 4. Select branch: `main`
 5. Under **Model Caching**, add your HF repo ID (e.g. `your-username/z-image-models`)
 6. GPU: Select **NVIDIA A100** / **RTX A6000** / **RTX 4090** (16GB+ VRAM for BF16)
