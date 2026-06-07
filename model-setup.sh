@@ -41,6 +41,21 @@ link_model() {
     fi
 }
 
+# Remove broken symlinks and stale model files so ComfyUI doesn't crash scanning them.
+cleanup_stale_links() {
+    local dir="$1"
+    if [ ! -d "$dir" ]; then
+        return
+    fi
+    for f in "$dir"/*; do
+        [ -e "$f" ] || [ -L "$f" ] || continue
+        if [ -L "$f" ] && [ ! -e "$f" ]; then
+            echo "[model-setup] Removing broken symlink: $f"
+            rm -f "$f"
+        fi
+    done
+}
+
 find_in_cache() {
     local base="$1"
     local filename="$2"
@@ -66,8 +81,18 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
     BASE="$HF_CACHE/$REPO_DIR/snapshots/$SNAP"
 
     echo "[model-setup] Using cached HF snapshot: $SNAP for repo $REPO"
+    echo "[model-setup] Base cache dir: $BASE"
+
+    # Clean up broken symlinks from previous deployments so ComfyUI doesn't crash
+    echo "[model-setup] Cleaning stale symlinks..."
+    cleanup_stale_links /comfyui/models/text_encoders
+    cleanup_stale_links /comfyui/models/diffusion_models
+    cleanup_stale_links /comfyui/models/unet
+    cleanup_stale_links /comfyui/models/vae
+    cleanup_stale_links /comfyui/models/loras
 
     # Text encoder
+    echo "[model-setup] Looking for text encoder..."
     SRC=$(find_in_cache "$BASE" "qwen_3_4b.safetensors" "split_files/text_encoders")
     if [ -n "$SRC" ]; then
         link_model "$SRC" /comfyui/models/text_encoders
@@ -77,14 +102,18 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
 
     # Diffusion model (non-turbo base, or fallback to turbo for backwards compat)
     # Link to both diffusion_models and unet for compatibility
+    echo "[model-setup] Looking for diffusion model..."
     SRC=$(find_in_cache "$BASE" "z_image_bf16.safetensors" "split_files/diffusion_models")
     if [ -n "$SRC" ]; then
+        echo "[model-setup] Found diffusion model (non-turbo): $SRC"
         link_model "$SRC" /comfyui/models/diffusion_models
         link_model "$SRC" /comfyui/models/unet
     else
+        echo "[model-setup] Non-turbo model not found, trying legacy turbo..."
         # Fallback: look for legacy turbo filename
         SRC=$(find_in_cache "$BASE" "z_image_turbo_bf16.safetensors" "split_files/diffusion_models")
         if [ -n "$SRC" ]; then
+            echo "[model-setup] Found diffusion model (turbo): $SRC"
             link_model "$SRC" /comfyui/models/diffusion_models
             link_model "$SRC" /comfyui/models/unet
         else
@@ -93,6 +122,7 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
     fi
 
     # VAE
+    echo "[model-setup] Looking for VAE..."
     SRC=$(find_in_cache "$BASE" "ae.safetensors" "split_files/vae")
     if [ -n "$SRC" ]; then
         link_model "$SRC" /comfyui/models/vae
@@ -101,12 +131,14 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
     fi
 
     # LoRAs (e.g. step reducer for txt2img speedup)
+    echo "[model-setup] Looking for LoRAs..."
     for lora in "$BASE"/*.safetensors "$BASE"/split_files/loras/*.safetensors; do
         [ -e "$lora" ] || continue
         link_model "$lora" /comfyui/models/loras
     done
 
     # Also support GGUF variants if present
+    echo "[model-setup] Looking for GGUF variants..."
     for gguf in "$BASE"/*.gguf "$BASE"/split_files/*/*.gguf; do
         [ -e "$gguf" ] || continue
         case "$(basename "$gguf")" in
@@ -122,10 +154,13 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
         esac
     done
 
+    echo "[model-setup] Model linking complete"
+
 else
     echo "[model-setup] WARNING: HF cache not found at $HF_CACHE/$REPO_DIR/refs/main"
     echo "[model-setup] Models may not be available. Continuing anyway..."
 fi
 
 # Delegate to the original base-image startup (starts ComfyUI + handler)
+echo "[model-setup] Starting ComfyUI via /start.sh..."
 exec /start.sh
