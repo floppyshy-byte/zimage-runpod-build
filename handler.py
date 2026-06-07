@@ -9,7 +9,9 @@ ComfyUI starts. This handler does NOT download any models at runtime.
 Input format:
 {
   "workflow": { ...ComfyUI API node graph... },
-  "images": [{"name": "input.png", "image": "<base64>"}]  // optional
+  "images": [{"name": "input.png", "image": "<base64>"}],  // optional
+  "init_image": "<base64>",                                // optional img2img
+  "denoise": 0.75                                          // optional (default 0.75)
 }
 
 Environment variables:
@@ -23,6 +25,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 import runpod
 
@@ -86,6 +89,76 @@ def _upload_image(name: str, image_b64: str) -> None:
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         resp.read()
+
+
+def _apply_img2img(workflow: dict, init_image_b64: str, denoise: float | None = None) -> None:
+    """Patch a txt2img-style workflow so the KSampler uses an uploaded init image.
+
+    Finds the first KSampler whose latent_image input comes from an empty latent
+    node (EmptySD3LatentImage / EmptyLatentImage), removes that node, and inserts
+    LoadImage -> VAEEncode in its place. The init image is uploaded to ComfyUI's
+    input folder. If denoise is provided, the KSampler's denoise value is updated.
+    """
+    denoise = 0.75 if denoise is None else float(denoise)
+
+    img_name = f"init_img_{uuid.uuid4().hex[:8]}.png"
+    _upload_image(img_name, init_image_b64)
+
+    ksampler_id: str | None = None
+    latent_source_id: str | None = None
+    for node_id, node in workflow.items():
+        if node.get("class_type") == "KSampler":
+            latent_input = node.get("inputs", {}).get("latent_image")
+            if isinstance(latent_input, list) and len(latent_input) == 2:
+                ksampler_id = node_id
+                latent_source_id = str(latent_input[0])
+            break
+
+    if not ksampler_id or not latent_source_id:
+        raise RuntimeError(
+            "img2img: no KSampler with a latent_image input found in workflow"
+        )
+
+    source_node = workflow.get(latent_source_id)
+    if not source_node:
+        raise RuntimeError(
+            f"img2img: latent source node {latent_source_id} referenced by KSampler not found"
+        )
+
+    source_type = source_node.get("class_type", "")
+    if source_type not in ("EmptySD3LatentImage", "EmptyLatentImage"):
+        raise RuntimeError(
+            f"img2img: KSampler latent source is {source_type}, expected EmptySD3LatentImage or EmptyLatentImage"
+        )
+
+    vae_loader_id: str | None = None
+    for node_id, node in workflow.items():
+        if node.get("class_type") in ("VAELoader", "VAELoaderTAESD"):
+            vae_loader_id = node_id
+            break
+
+    if not vae_loader_id:
+        raise RuntimeError("img2img: no VAELoader node found in workflow")
+
+    load_id = f"init_load_{uuid.uuid4().hex[:4]}"
+    encode_id = f"init_encode_{uuid.uuid4().hex[:4]}"
+
+    del workflow[latent_source_id]
+
+    workflow[load_id] = {
+        "inputs": {"image": img_name},
+        "class_type": "LoadImage",
+    }
+    workflow[encode_id] = {
+        "inputs": {
+            "pixels": [load_id, 0],
+            "vae": [vae_loader_id, 0],
+        },
+        "class_type": "VAEEncode",
+    }
+
+    workflow[ksampler_id]["inputs"]["latent_image"] = [encode_id, 0]
+    workflow[ksampler_id]["inputs"]["denoise"] = denoise
 
 
 def _queue_prompt(workflow: dict) -> str:
@@ -177,7 +250,16 @@ def handler(job: dict) -> dict:
         except Exception as exc:
             return {"error": f"Failed to decrypt prompt: {exc}"}
 
-    # Upload input images (e.g. for img2img)
+    # Convenience img2img: patch a txt2img workflow to use an init image.
+    # If you prefer full control, provide a workflow with LoadImage nodes and use "images".
+    init_image = job_input.get("init_image")
+    if init_image:
+        try:
+            _apply_img2img(workflow, init_image, job_input.get("denoise"))
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    # Upload input images (e.g. for raw workflows with LoadImage nodes)
     for img in images:
         try:
             _upload_image(img["name"], img["image"])

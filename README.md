@@ -88,6 +88,37 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/run \
 
 See [`workflow-example.json`](workflow-example.json) for a complete text-to-image example.
 
+### Image-to-Image
+
+You can do img2img in two ways:
+
+**Option A — Convenience `init_image` field (recommended)**
+
+Send the same txt2img workflow from [`workflow-example.json`](workflow-example.json) plus an `init_image`. The handler automatically replaces the empty latent node with `LoadImage` → `VAEEncode` and sets the denoise strength:
+
+```json
+{
+  "input": {
+    "workflow": { ...txt2img workflow JSON... },
+    "init_image": "<base64-encoded PNG/JPEG>",
+    "denoise": 0.75
+  }
+}
+```
+
+**Option B — Raw ComfyUI workflow with `LoadImage`**
+
+Pass a complete workflow that includes `LoadImage` → `VAEEncode` → `KSampler` (see [`workflow-img2img.json`](workflow-img2img.json)) and upload the input image via the `images` array:
+
+```json
+{
+  "input": {
+    "workflow": { ...img2img workflow JSON... },
+    "images": [{"name": "input.png", "image": "<base64>"}]
+  }
+}
+```
+
 ## API Reference
 
 ### Input
@@ -95,7 +126,9 @@ See [`workflow-example.json`](workflow-example.json) for a complete text-to-imag
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `workflow` | object | ✅ | ComfyUI API workflow JSON (node graph) |
-| `images` | array | ❌ | Input images for img2img / ControlNet |
+| `images` | array | ❌ | Input images for raw workflows with `LoadImage` nodes |
+| `init_image` | string | ❌ | Base64 PNG/JPEG; auto-patches a txt2img workflow into img2img |
+| `denoise` | float | ❌ | Denoise strength for `init_image` mode (default: `0.75`) |
 
 ### Output
 
