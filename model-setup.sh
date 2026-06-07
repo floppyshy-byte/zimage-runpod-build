@@ -11,7 +11,8 @@ set -e
 #
 #   2. HF repo with split_files/ (e.g. Floppyshy/z_image):
 #      split_files/text_encoders/qwen_3_4b.safetensors
-#      split_files/diffusion_models/z_image_bf16.safetensors
+#      split_files/diffusion_models/z_image_turbo_bf16.safetensors  (txt2img)
+#      split_files/diffusion_models/z_image_bf16.safetensors        (img2img)
 #      split_files/vae/ae.safetensors
 #      split_files/loras/*.safetensors
 #
@@ -100,25 +101,27 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
         echo "[model-setup] WARNING: qwen_3_4b.safetensors not found in HF cache"
     fi
 
-    # Diffusion model (non-turbo base, or fallback to turbo for backwards compat)
-    # Link to both diffusion_models and unet for compatibility
-    echo "[model-setup] Looking for diffusion model..."
-    SRC=$(find_in_cache "$BASE" "z_image_bf16.safetensors" "split_files/diffusion_models")
+    # Diffusion models — link BOTH if present:
+    #   z_image_turbo_bf16.safetensors for txt2img (fast, distilled)
+    #   z_image_bf16.safetensors for img2img (full iterative quality)
+    echo "[model-setup] Looking for diffusion models..."
+
+    SRC=$(find_in_cache "$BASE" "z_image_turbo_bf16.safetensors" "split_files/diffusion_models")
     if [ -n "$SRC" ]; then
-        echo "[model-setup] Found diffusion model (non-turbo): $SRC"
+        echo "[model-setup] Found turbo model: $SRC"
         link_model "$SRC" /comfyui/models/diffusion_models
         link_model "$SRC" /comfyui/models/unet
     else
-        echo "[model-setup] Non-turbo model not found, trying legacy turbo..."
-        # Fallback: look for legacy turbo filename
-        SRC=$(find_in_cache "$BASE" "z_image_turbo_bf16.safetensors" "split_files/diffusion_models")
-        if [ -n "$SRC" ]; then
-            echo "[model-setup] Found diffusion model (turbo): $SRC"
-            link_model "$SRC" /comfyui/models/diffusion_models
-            link_model "$SRC" /comfyui/models/unet
-        else
-            echo "[model-setup] WARNING: No diffusion model found in HF cache"
-        fi
+        echo "[model-setup] WARNING: z_image_turbo_bf16.safetensors not found"
+    fi
+
+    SRC=$(find_in_cache "$BASE" "z_image_bf16.safetensors" "split_files/diffusion_models")
+    if [ -n "$SRC" ]; then
+        echo "[model-setup] Found base model: $SRC"
+        link_model "$SRC" /comfyui/models/diffusion_models
+        link_model "$SRC" /comfyui/models/unet
+    else
+        echo "[model-setup] WARNING: z_image_bf16.safetensors not found"
     fi
 
     # VAE
