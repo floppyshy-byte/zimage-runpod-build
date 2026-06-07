@@ -86,7 +86,7 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/run \
   }'
 ```
 
-See [`workflow-example.json`](workflow-example.json) for a complete text-to-image example.
+Below is a minimal text-to-image request body. You can find ready-to-use workflow examples in the companion web UI repo (`zimage-web`).
 
 ### Image-to-Image
 
@@ -94,7 +94,7 @@ You can do img2img in two ways:
 
 **Option A — Convenience `init_image` field (recommended)**
 
-Send the same txt2img workflow from [`workflow-example.json`](workflow-example.json) plus an `init_image`. The handler automatically replaces the empty latent node with `LoadImage` → `VAEEncode` and sets the denoise strength:
+Send a txt2img workflow plus an `init_image`. The handler automatically replaces the empty latent node with `LoadImage` → `VAEEncode` and sets the denoise strength:
 
 ```json
 {
@@ -108,7 +108,7 @@ Send the same txt2img workflow from [`workflow-example.json`](workflow-example.j
 
 **Option B — Raw ComfyUI workflow with `LoadImage`**
 
-Pass a complete workflow that includes `LoadImage` → `VAEEncode` → `KSampler` (see [`workflow-img2img.json`](workflow-img2img.json)) and upload the input image via the `images` array:
+Pass a complete workflow that includes `LoadImage` → `VAEEncode` → `KSampler` and upload the input image via the `images` array:
 
 ```json
 {
@@ -190,7 +190,6 @@ The `ComfyUI-GGUF` custom node is pre-installed. Use the `GGUFModelLoader` and `
 ├── Dockerfile                  # ComfyUI base image + Z-Image custom nodes
 ├── handler.py                  # RunPod serverless handler
 ├── model-setup.sh              # Symlinks HF cached models into ComfyUI
-├── workflow-example.json       # Example text-to-image workflow
 ├── .github/workflows/
 │   └── docker-build.yml        # GitHub Actions CI/CD
 └── README.md                   # This file
