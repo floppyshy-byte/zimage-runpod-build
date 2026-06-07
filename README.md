@@ -1,12 +1,16 @@
-# Z-Image Turbo — RunPod Serverless Endpoint
+# Z-Image — RunPod Serverless Endpoint
 
-A [RunPod](https://www.runpod.io/) serverless worker for [Z-Image Turbo](https://z-image-ai.org/), Alibaba's 6B parameter AI image generation model. Built on top of ComfyUI with model caching via RunPod's HuggingFace integration.
+A [RunPod](https://www.runpod.io/) serverless worker for [Z-Image](https://z-image-ai.org/), Alibaba's 6B parameter AI image generation model. Built on top of ComfyUI with model caching via RunPod's HuggingFace integration.
+
+Uses the **non-turbo base model** for full quality, with an optional **step-reducer LoRA** for fast txt2img.
 
 ## Features
 
-- **Z-Image Turbo** text-to-image generation via ComfyUI API workflows
+- **Z-Image** text-to-image and image-to-image generation via ComfyUI API workflows
+- **Non-turbo base model** — full diffusion trajectory for quality img2img transformations
+- **Step-reducer LoRA** — distilled speed for txt2img (~8 steps)
 - **Pre-cached models** — fast cold starts via RunPod HF Model Cache
-- **Raw ComfyUI workflow JSON** input — full flexibility for img2img, ControlNet, LoRAs, etc.
+- **Raw ComfyUI workflow JSON** input — full flexibility for LoRAs, ControlNet, etc.
 - **Optional AES-256-GCM payload encryption** for sensitive requests
 - **GGUF support** via ComfyUI-GGUF custom node for lower VRAM setups
 
@@ -15,21 +19,37 @@ A [RunPod](https://www.runpod.io/) serverless worker for [Z-Image Turbo](https:/
 | File | Size | Purpose | ComfyUI Path |
 |------|------|---------|-------------|
 | `qwen_3_4b.safetensors` | ~8GB | Text Encoder (Qwen 3) | `models/text_encoders/` |
-| `z_image_turbo_bf16.safetensors` | ~12GB | Diffusion Model | `models/diffusion_models/` |
-| `ae.safetensors` | ~1GB | VAE (same as Flux VAE) | `models/vae/` |
+| `z_image_bf16.safetensors` | ~12GB | Diffusion Model (base) | `models/diffusion_models/` |
+| `z_image_turbo_distill_patch_lora_bf16.safetensors` | ~159MB | Step Reducer LoRA | `models/loras/` |
+| `ae.safetensors` | ~335MB | VAE (same as Flux VAE) | `models/vae/` |
 
 **Total:** ~21GB for BF16. GGUF quantized variants are also supported for 8-12GB VRAM GPUs.
+
+## Architecture
+
+| Mode | Model | Steps | CFG | Notes |
+|------|-------|-------|-----|-------|
+| **txt2img** | Base + Step-Reducer LoRA | 8 | 1.5–2.0 | Fast, distilled quality |
+| **img2img** | Base only (no LoRA) | 20–50 | 5–8 | Full iterative capacity for transformations |
 
 ## Quick Start
 
 ### 1. Upload Models to HuggingFace
 
-Create a private or public HF repo (e.g. `your-username/z-image-models`) and upload the 3 model files:
+Create a private or public HF repo and upload the model files:
 
 ```bash
-huggingface-cli upload your-username/z-image-models qwen_3_4b.safetensors
-huggingface-cli upload your-username/z-image-models z_image_turbo_bf16.safetensors
-huggingface-cli upload your-username/z-image-models ae.safetensors
+# Text encoder
+huggingface-cli upload your-username/z-image split_files/text_encoders/qwen_3_4b.safetensors
+
+# Base diffusion model (non-turbo)
+huggingface-cli upload your-username/z-image split_files/diffusion_models/z_image_bf16.safetensors
+
+# Step reducer LoRA (for fast txt2img)
+huggingface-cli upload your-username/z-image split_files/loras/z_image_turbo_distill_patch_lora_bf16.safetensors
+
+# VAE
+huggingface-cli upload your-username/z-image split_files/vae/ae.safetensors
 ```
 
 ### 2. Build the Docker Image
@@ -50,23 +70,7 @@ docker build -t z-image-worker .
 
 ### Model Options
 
-**Option A — Use official Comfy-Org repo (easiest, ~34.5 GB cache):**
-5. Under **Model Caching**, add: `Comfy-Org/z_image_turbo`
-
-**Option B — Use your own repo (leaner, ~21 GB cache):**
-5. Create a private HF repo and upload only the BF16 files:
-   ```bash
-   huggingface-cli upload your-username/z-image-models \
-     split_files/diffusion_models/z_image_turbo_bf16.safetensors \
-     --repo-type model
-   huggingface-cli upload your-username/z-image-models \
-     split_files/text_encoders/qwen_3_4b.safetensors \
-     --repo-type model
-   huggingface-cli upload your-username/z-image-models \
-     split_files/vae/ae.safetensors \
-     --repo-type model
-   ```
-   Then add `your-username/z-image-models` to Model Caching
+Under **Model Caching**, add your HF repo ID (default: `Floppyshy/z_image`).
 4. Select branch: `main`
 5. Under **Model Caching**, add your HF repo ID (e.g. `your-username/z-image-models`)
 6. GPU: Select **NVIDIA A100** / **RTX A6000** / **RTX 4090** (16GB+ VRAM for BF16)
@@ -166,19 +170,31 @@ The decrypted payload must be a JSON object with `workflow` and optional `images
 
 ## Recommended Generation Settings
 
+### txt2img (with step-reducer LoRA)
+
 | Setting | Value | Notes |
 |---------|-------|-------|
-| Steps | **8** | Sweet spot for the distilled model |
-| CFG Scale | **1.5 – 2.0** | Keep low! Above 2.5 causes artifacts |
-| Sampler | **euler** | Fast and consistent for S3-DiT |
+| Steps | **8** | Sweet spot with the LoRA |
+| CFG Scale | **1.5 – 2.0** | Keep low with LoRA; above 2.5 causes artifacts |
+| Sampler | **euler** | Fast and consistent |
 | Resolution | **1024×1024** | Native resolution |
 | CLIP Type | **lumina2** | Required for Qwen 3 text encoder |
+
+### img2img (base model, no LoRA)
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| Steps | **20–50** | Full iterative denoising |
+| CFG Scale | **5–8** | Standard guidance for structural changes |
+| Denoise | **0.75–0.95** | 0.75 for color/style, 0.90+ for subject replacement |
+| Sampler | **euler** | Reliable for img2img |
+| Resolution | **1024×1024** | Native resolution |
 
 ## Low VRAM / GGUF
 
 For GPUs with 8-12GB VRAM, use GGUF quantized models:
 
-- `z_image_turbo-Q5_K_S.gguf` (diffusion model)
+- `z_image-Q5_K_S.gguf` (diffusion model)
 - `Qwen3-4B.i1-Q5_K_S.gguf` (text encoder)
 
 The `ComfyUI-GGUF` custom node is pre-installed. Use the `GGUFModelLoader` and `GGUFCLIPLoader` nodes in your workflow.

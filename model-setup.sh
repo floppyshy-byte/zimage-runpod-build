@@ -6,18 +6,21 @@ set -e
 # Supports two repo structures:
 #   1. Custom repo (files at root):
 #      qwen_3_4b.safetensors
-#      z_image_turbo_bf16.safetensors
+#      z_image_bf16.safetensors (or z_image_turbo_bf16.safetensors)
 #      ae.safetensors
 #
-#   2. Official Comfy-Org repo (files under split_files/):
+#   2. HF repo with split_files/ (e.g. Floppyshy/z_image):
 #      split_files/text_encoders/qwen_3_4b.safetensors
-#      split_files/diffusion_models/z_image_turbo_bf16.safetensors
+#      split_files/diffusion_models/z_image_bf16.safetensors
 #      split_files/vae/ae.safetensors
+#      split_files/loras/*.safetensors
 #
 # These are linked into:
 #   /comfyui/models/text_encoders/
 #   /comfyui/models/diffusion_models/
+#   /comfyui/models/unet/
 #   /comfyui/models/vae/
+#   /comfyui/models/loras/
 
 HF_CACHE="/runpod-volume/huggingface-cache/hub"
 REPO="${ZIMAGE_HF_REPO:-Comfy-Org/z_image_turbo}"
@@ -72,13 +75,21 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
         echo "[model-setup] WARNING: qwen_3_4b.safetensors not found in HF cache"
     fi
 
-    # Diffusion model (link to both diffusion_models and unet for compatibility)
-    SRC=$(find_in_cache "$BASE" "z_image_turbo_bf16.safetensors" "split_files/diffusion_models")
+    # Diffusion model (non-turbo base, or fallback to turbo for backwards compat)
+    # Link to both diffusion_models and unet for compatibility
+    SRC=$(find_in_cache "$BASE" "z_image_bf16.safetensors" "split_files/diffusion_models")
     if [ -n "$SRC" ]; then
         link_model "$SRC" /comfyui/models/diffusion_models
         link_model "$SRC" /comfyui/models/unet
     else
-        echo "[model-setup] WARNING: z_image_turbo_bf16.safetensors not found in HF cache"
+        # Fallback: look for legacy turbo filename
+        SRC=$(find_in_cache "$BASE" "z_image_turbo_bf16.safetensors" "split_files/diffusion_models")
+        if [ -n "$SRC" ]; then
+            link_model "$SRC" /comfyui/models/diffusion_models
+            link_model "$SRC" /comfyui/models/unet
+        else
+            echo "[model-setup] WARNING: No diffusion model found in HF cache"
+        fi
     fi
 
     # VAE
@@ -88,6 +99,12 @@ if [ -f "$HF_CACHE/$REPO_DIR/refs/main" ]; then
     else
         echo "[model-setup] WARNING: ae.safetensors not found in HF cache"
     fi
+
+    # LoRAs (e.g. step reducer for txt2img speedup)
+    for lora in "$BASE"/*.safetensors "$BASE"/split_files/loras/*.safetensors; do
+        [ -e "$lora" ] || continue
+        link_model "$lora" /comfyui/models/loras
+    done
 
     # Also support GGUF variants if present
     for gguf in "$BASE"/*.gguf "$BASE"/split_files/*/*.gguf; do
