@@ -32,6 +32,15 @@ class Settings:
             AES-256-GCM key for decrypting payloads. If empty, encrypted
             nodes will raise a clear error at runtime.
             Env var: ``COMFY_ENCRYPTION_KEY``
+
+        civitai_api_key (str): Bearer token for authenticated CivitAI
+            downloads. Optional.
+            Env var: ``CIVITAI_API_KEY``
+
+        github_token (str): Token for authenticated GitHub downloads
+            (e.g. release assets). Falls back to ``GH_FLOPPY_TOKEN`` for
+            backward compatibility. Optional.
+            Env vars: ``GITHUB_TOKEN``, ``GH_FLOPPY_TOKEN``
     """
 
     @property
@@ -49,6 +58,14 @@ class Settings:
     @property
     def comfy_encryption_key(self) -> str:
         return os.environ.get("COMFY_ENCRYPTION_KEY", "")
+
+    @property
+    def civitai_api_key(self) -> str:
+        return os.environ.get("CIVITAI_API_KEY", "")
+
+    @property
+    def github_token(self) -> str:
+        return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_FLOPPY_TOKEN", "")
 
 
 # Module-level singleton. Import this object rather than instantiating

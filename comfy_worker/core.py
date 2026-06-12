@@ -4,6 +4,7 @@ import json
 
 from .comfy_client import COMFYUI_URL, ComfyClient
 from .crypto import ENCRYPTION_KEY, aes_decrypt, aes_encrypt
+from .model_downloader import download_loras
 
 
 def handler(job: dict) -> dict:
@@ -34,6 +35,12 @@ def handler(job: dict) -> dict:
 
     if not workflow:
         return {"error": "No workflow provided"}
+
+    # Download any runtime LoRAs that are not already in the model cache.
+    try:
+        download_loras(job_input.get("loras") or [])
+    except RuntimeError as exc:
+        return {"error": str(exc)}
 
     client = ComfyClient(COMFYUI_URL)
 

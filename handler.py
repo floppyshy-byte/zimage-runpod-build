@@ -3,8 +3,8 @@
 Custom RunPod serverless handler for ComfyUI.
 
 Models are pre-cached via RunPod model caching from a HuggingFace repo and
-symlinked into place before ComfyUI starts. This handler does NOT download any
-models at runtime.
+symlinked into place before ComfyUI starts. Per-workflow LoRAs can also be
+downloaded at job time; any LoRA already present in the model cache is skipped.
 
 Input format (encrypted payload only):
 {
@@ -14,7 +14,10 @@ Input format (encrypted payload only):
 The decrypted payload must contain:
 {
   "workflow": { ...ComfyUI API node graph... },
-  "init_image": "<base64>",  // optional img2img
+  "loras": [  // optional runtime LoRAs
+    {"lora_name": "filename.safetensors", "lora_url": "https://..."}
+  ],
+  "init_image": "<base64>",  // optional img2img (deprecated, embed in workflow)
   "denoise": 0.75            // optional (default 0.75)
 }
 
@@ -24,6 +27,9 @@ longer accepted.
 
 Environment variables:
   COMFY_ENCRYPTION_KEY  — required; 64 hex chars for AES-256-GCM payload encryption
+  CIVITAI_API_KEY       — optional; Bearer token for CivitAI LoRA downloads
+  GITHUB_TOKEN          — optional; token for GitHub release asset downloads
+  GH_FLOPPY_TOKEN       — optional; fallback for GitHub token (backward compat)
 """
 
 import runpod
