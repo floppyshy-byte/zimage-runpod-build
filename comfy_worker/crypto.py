@@ -1,12 +1,13 @@
 """AES-256-GCM payload encryption helpers."""
 
 import base64
-import os
 import secrets
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-_RAW_KEY = os.getenv("COMFY_ENCRYPTION_KEY", "")
+from .env import env
+
+_RAW_KEY = env.comfy_encryption_key
 if _RAW_KEY:
     _key_bytes = bytes.fromhex(_RAW_KEY)
     if len(_key_bytes) != 32:

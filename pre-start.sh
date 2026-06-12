@@ -7,7 +7,7 @@ set -e
 # linking, cleanup, etc.) and then delegates to the base image's /start.sh.
 
 echo "[pre-start] Linking cached models into ComfyUI model paths..."
-python3 /zimage_worker/setup_models.py
+python3 /comfy_worker/setup_models.py
 
 echo "[pre-start] Starting ComfyUI via /start.sh..."
 exec /start.sh

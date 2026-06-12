@@ -4,7 +4,6 @@ import json
 
 from .comfy_client import COMFYUI_URL, ComfyClient
 from .crypto import ENCRYPTION_KEY, aes_decrypt, aes_encrypt
-from .workflow import apply_img2img
 
 
 def handler(job: dict) -> dict:
@@ -37,16 +36,6 @@ def handler(job: dict) -> dict:
         return {"error": "No workflow provided"}
 
     client = ComfyClient(COMFYUI_URL)
-
-    # Convenience img2img: patch a txt2img workflow to use an init image.
-    # For other image inputs, embed them directly in the workflow with LoadImageBase64,
-    # LoadImageUrl, or LoadImageEncrypted nodes.
-    init_image = job_input.get("init_image")
-    if init_image:
-        try:
-            apply_img2img(workflow, init_image, client, job_input.get("denoise"))
-        except Exception as exc:
-            return {"error": str(exc)}
 
     # Queue the workflow prompt
     try:

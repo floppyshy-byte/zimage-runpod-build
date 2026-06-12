@@ -7,6 +7,20 @@ from .shared import _load_image_tensor, _suffix_from_content_type, _write_temp_i
 
 
 class LoadImageUrl:
+    """Download an image from a public URL and load it into ComfyUI.
+
+    Usage:
+        Connect a STRING output containing an image URL to the ``url`` input.
+        The node downloads the image, saves it to ComfyUI's input directory,
+        and returns the standard IMAGE/MASK tensors.
+
+    Inputs:
+        url (STRING): A public HTTP or HTTPS URL pointing to an image.
+
+    Outputs:
+        image (IMAGE): The downloaded image as a ComfyUI IMAGE tensor.
+        mask (MASK): Alpha mask, or a blank mask if the image has no alpha.
+    """
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -24,7 +38,7 @@ class LoadImageUrl:
         req = Request(
             url.strip(),
             headers={
-                "User-Agent": "Mozilla/5.0 (compatible; ZImage-ComfyUI-Worker/1.0)"
+                "User-Agent": "Mozilla/5.0 (compatible; RunPod-ComfyUI-Worker/1.0)"
             },
         )
 

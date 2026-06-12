@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Custom RunPod handler for ComfyUI with Z-Image Turbo models pre-cached.
+Custom RunPod serverless handler for ComfyUI.
 
-All models (text encoder, diffusion model, VAE) are pre-cached via RunPod model
-caching from a HuggingFace repo and symlinked into place by model-setup.sh before
-ComfyUI starts. This handler does NOT download any models at runtime.
+Models are pre-cached via RunPod model caching from a HuggingFace repo and
+symlinked into place before ComfyUI starts. This handler does NOT download any
+models at runtime.
 
 Input format (encrypted payload only):
 {
@@ -28,7 +28,7 @@ Environment variables:
 
 import runpod
 
-from zimage_worker import COMFYUI_URL, ComfyClient, handler
+from comfy_worker import COMFYUI_URL, ComfyClient, handler
 
 if __name__ == "__main__":
     print("[handler] Waiting for ComfyUI...")

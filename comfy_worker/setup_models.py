@@ -16,10 +16,11 @@ Any directory tree is preserved; only files are symlinked, so ComfyUI sees the
 cached models in the standard locations without copying them.
 """
 
-import os
 from pathlib import Path
 
-TARGET_BASE = Path(os.environ.get("TARGET_BASE", "/comfyui/models"))
+from .env import env
+
+TARGET_BASE = env.target_base
 HF_CACHE = Path("/runpod-volume/huggingface-cache/hub")
 
 JUNK_SUFFIXES = {
@@ -41,8 +42,8 @@ def log(message: str) -> None:
 
 def resolve_cache_dir() -> Path | None:
     """Return the source cache directory from the HF cache snapshot."""
-    org = os.environ.get("HF_ORG")
-    repo = os.environ.get("HF_REPO")
+    org = env.hf_org
+    repo = env.hf_repo
     if not org or not repo:
         return None
 

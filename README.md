@@ -1,58 +1,30 @@
-# Z-Image — RunPod Serverless Endpoint
+# RunPod ComfyUI Serverless Endpoint
 
-A [RunPod](https://www.runpod.io/) serverless worker for [Z-Image](https://z-image-ai.org/), Alibaba's 6B parameter AI image generation model. Built on top of ComfyUI with model caching via RunPod's HuggingFace integration.
-
-Uses the **non-turbo base model** for full quality, with an optional **step-reducer LoRA** for fast txt2img.
+A generic [RunPod](https://www.runpod.io/) serverless worker for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Built on top of the official RunPod ComfyUI base image with model caching via RunPod's HuggingFace integration.
 
 ## Features
 
-- **Z-Image** text-to-image and image-to-image generation via ComfyUI API workflows
-- **Non-turbo base model** — full diffusion trajectory for quality img2img transformations
-- **Step-reducer LoRA** — distilled speed for txt2img (~8 steps)
+- **Raw ComfyUI workflow JSON** input — full flexibility for any model, LoRA, ControlNet, etc.
 - **Pre-cached models** — fast cold starts via RunPod HF Model Cache
-- **Raw ComfyUI workflow JSON** input — full flexibility for LoRAs, ControlNet, etc.
 - **AES-256-GCM payload encryption** for all requests and responses
+- **Custom image-loading nodes** — load images from base64, URL, or encrypted payloads
 - **GGUF support** via ComfyUI-GGUF custom node for lower VRAM setups
-
-## Model Files
-
-| File | Size | Purpose | ComfyUI Path |
-|------|------|---------|-------------|
-| `qwen_3_4b.safetensors` | ~8GB | Text Encoder (Qwen 3) | `models/text_encoders/` |
-| `z_image_bf16.safetensors` | ~12GB | Diffusion Model (base) | `models/diffusion_models/` |
-| `z_image_turbo_distill_patch_lora_bf16.safetensors` | ~159MB | Step Reducer LoRA | `models/loras/` |
-| `ae.safetensors` | ~335MB | VAE (same as Flux VAE) | `models/vae/` |
-
-**Total:** ~21GB for BF16. GGUF quantized variants are also supported for 8-12GB VRAM GPUs.
-
-## Architecture
-
-| Mode | Model | Steps | CFG | Notes |
-|------|-------|-------|-----|-------|
-| **txt2img** | Base + Step-Reducer LoRA | 8 | 1.5–2.0 | Fast, distilled quality |
-| **img2img** | Base only (no LoRA) | 20–50 | 5–8 | Full iterative capacity for transformations |
 
 ## Quick Start
 
 ### 1. Upload Models to HuggingFace
 
-Create a private or public HF repo and upload the model files in the same layout ComfyUI expects under `models/`:
+Create a private or public HF repo and upload your model files in the same layout ComfyUI expects under `models/`:
 
 ```bash
-# Text encoder
-huggingface-cli upload your-username/z-image text_encoders/qwen_3_4b.safetensors
-
-# Base diffusion model (non-turbo)
-huggingface-cli upload your-username/z-image diffusion_models/z_image_bf16.safetensors
-
-# Step reducer LoRA (for fast txt2img)
-huggingface-cli upload your-username/z-image loras/z_image_turbo_distill_patch_lora_bf16.safetensors
-
-# VAE
-huggingface-cli upload your-username/z-image vae/ae.safetensors
+# Example structure
+huggingface-cli upload your-username/comfy-models text_encoders/your_encoder.safetensors
+huggingface-cli upload your-username/comfy-models diffusion_models/your_model.safetensors
+huggingface-cli upload your-username/comfy-models vae/your_vae.safetensors
+huggingface-cli upload your-username/comfy-models loras/your_lora.safetensors
 ```
 
-The model-setup script mirrors this tree into `/comfyui/models/` at startup, so any ComfyUI model directory (e.g. `unet/`, `checkpoints/`, `clip/`) is supported automatically.
+The model-setup script mirrors this tree into `/comfyui/models/` at startup, so any ComfyUI model directory (e.g. `unet/`, `checkpoints/`, `clip/`, `loras/`) is supported automatically.
 
 ### 2. Build the Docker Image
 
@@ -61,21 +33,17 @@ Push to this repo's `main` branch — GitHub Actions will build and push to GHCR
 Or build locally:
 
 ```bash
-docker build -t z-image-worker .
+docker build -t runpod-comfyui-worker .
 ```
 
 ### 3. Create RunPod Serverless Endpoint
 
 1. Go to [RunPod Serverless Console](https://www.runpod.io/console/serverless)
 2. Click **New Endpoint**
-3. Under **Source**, connect this GitHub repo (`floppyshy-byte/zimage-runpod-build`)
-
-### Model Options
-
-Under **Model Caching**, add your HF repo ID (default: `Floppyshy/z_image`).
+3. Under **Source**, connect this GitHub repo
 4. Select branch: `main`
-5. Under **Model Caching**, add your HF repo ID (e.g. `your-username/z-image-models`)
-6. GPU: Select **NVIDIA A100** / **RTX A6000** / **RTX 4090** (16GB+ VRAM for BF16)
+5. Under **Model Caching**, add your HF repo ID (e.g. `your-username/comfy-models`)
+6. GPU: Select a GPU with enough VRAM for your chosen models
 7. Set the `COMFY_ENCRYPTION_KEY` environment variable (required for AES encryption)
 8. Deploy
 
@@ -94,27 +62,7 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/run \
   }'
 ```
 
-The decrypted payload must contain `workflow` and optionally `init_image` and `denoise`. Images must be embedded directly in the workflow using LoadImageBase64, LoadImageUrl, or LoadImageEncrypted nodes; the legacy `images` array is no longer accepted. You can find ready-to-use workflow examples in the companion web UI repo (`zimage-web`).
-
-### Image-to-Image
-
-You can do img2img in two ways. In both cases the outer `input` object is wrapped in an encrypted payload.
-
-**Option A — Convenience `init_image` field (recommended)**
-
-Send a txt2img workflow plus an `init_image`. The handler automatically replaces the empty latent node with `LoadImage` → `VAEEncode` and sets the denoise strength:
-
-```json
-{
-  "workflow": { ...txt2img workflow JSON... },
-  "init_image": "<base64-encoded PNG/JPEG>",
-  "denoise": 0.75
-}
-```
-
-**Option B — Raw ComfyUI workflow with embedded images**
-
-Pass a complete workflow that embeds input images directly using the custom `LoadImageBase64`, `LoadImageUrl`, or `LoadImageEncrypted` nodes. The legacy `images` array is no longer accepted.
+The decrypted payload must contain `workflow`. Images must be embedded directly in the workflow using `LoadImageBase64`, `LoadImageUrl`, or `LoadImageEncrypted` nodes; the legacy `images` array is no longer accepted.
 
 ## API Reference
 
@@ -135,8 +83,6 @@ The decrypted payload contains:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `workflow` | object | ✅ | ComfyUI API workflow JSON (node graph) |
-| `init_image` | string | ❌ | Base64 PNG/JPEG; auto-patches a txt2img workflow into img2img |
-| `denoise` | float | ❌ | Denoise strength for `init_image` mode (default: `0.75`) |
 
 ### Output
 
@@ -164,7 +110,7 @@ Requests and responses are encrypted with AES-256-GCM using the `COMFY_ENCRYPTIO
 }
 ```
 
-The decrypted payload must be a JSON object with `workflow` and optional `init_image` and `denoise`. Images must be embedded directly in the workflow using LoadImageBase64, LoadImageUrl, or LoadImageEncrypted nodes; the legacy `images` array is no longer accepted. Output images are returned encrypted and include `"encrypted": true`.
+The decrypted payload must be a JSON object with `workflow`. Images must be embedded directly in the workflow using `LoadImageBase64`, `LoadImageUrl`, or `LoadImageEncrypted` nodes. Output images are returned encrypted and include `"encrypted": true`.
 
 ## Custom Nodes
 
@@ -198,57 +144,34 @@ Decrypts an AES-256-GCM encrypted payload with `COMFY_ENCRYPTION_KEY`, then dele
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HF_ORG` | `floppyshy-byte` | Hugging Face organization / user that owns the model repo |
-| `HF_REPO` | `z-image-models` | Hugging Face repo name containing the cached models |
+| `TARGET_BASE` | `/comfyui/models` | Root directory where cached models are symlinked |
+| `HF_ORG` | *(none)* | Hugging Face organization / user that owns the model repo |
+| `HF_REPO` | *(none)* | Hugging Face repo name containing the cached models |
 | `COMFY_ENCRYPTION_KEY` | *(none)* | **Required.** 64 hex chars for AES-256-GCM encryption |
-
-## Recommended Generation Settings
-
-### txt2img (with step-reducer LoRA)
-
-| Setting | Value | Notes |
-|---------|-------|-------|
-| Steps | **8** | Sweet spot with the LoRA |
-| CFG Scale | **1.5 – 2.0** | Keep low with LoRA; above 2.5 causes artifacts |
-| Sampler | **euler** | Fast and consistent |
-| Resolution | **1024×1024** | Native resolution |
-| CLIP Type | **lumina2** | Required for Qwen 3 text encoder |
-
-### img2img (base model, no LoRA)
-
-| Setting | Value | Notes |
-|---------|-------|-------|
-| Steps | **20–50** | Full iterative denoising |
-| CFG Scale | **5–8** | Standard guidance for structural changes |
-| Denoise | **0.75–0.95** | 0.75 for color/style, 0.90+ for subject replacement |
-| Sampler | **euler** | Reliable for img2img |
-| Resolution | **1024×1024** | Native resolution |
 
 ## Low VRAM / GGUF
 
-For GPUs with 8-12GB VRAM, use GGUF quantized models:
-
-- `z_image-Q5_K_S.gguf` (diffusion model)
-- `Qwen3-4B.i1-Q5_K_S.gguf` (text encoder)
-
-The `ComfyUI-GGUF` custom node is pre-installed. Use the `GGUFModelLoader` and `GGUFCLIPLoader` nodes in your workflow.
+For GPUs with limited VRAM, use GGUF quantized models with the pre-installed `ComfyUI-GGUF` custom node. Use the `GGUFModelLoader` and `GGUFCLIPLoader` nodes in your workflow.
 
 ## Project Structure
 
 ```
 .
-├── Dockerfile                  # ComfyUI base image + Z-Image custom nodes
+├── Dockerfile                  # ComfyUI base image + custom nodes
 ├── handler.py                  # Thin RunPod serverless entrypoint
 ├── comfyui_custom_nodes/       # ComfyUI custom nodes
 │   └── load_image/
 │       ├── __init__.py
-│       └── nodes.py            # LoadImageBase64 / LoadImageUrl / LoadImageEncrypted
-├── zimage_worker/              # Handler implementation package
+│       ├── load_image_base64.py
+│       ├── load_image_url.py
+│       ├── load_image_encrypted.py
+│       └── shared.py
+├── comfy_worker/               # Handler implementation package
 │   ├── __init__.py
 │   ├── crypto.py               # AES-256-GCM encryption helpers
 │   ├── comfy_client.py         # ComfyUI HTTP client
+│   ├── env.py                  # Centralized environment variables
 │   ├── setup_models.py         # Links cached models into ComfyUI model paths
-│   ├── workflow.py             # img2img workflow patching
 │   └── core.py                 # Request handler orchestration
 ├── pre-start.sh                # Pre-start hook: model setup, then /start.sh
 ├── .github/workflows/
@@ -258,4 +181,4 @@ The `ComfyUI-GGUF` custom node is pre-installed. Use the `GGUFModelLoader` and `
 
 ## License
 
-See Z-Image Turbo's official license. This worker code is provided as-is for deployment convenience.
+This worker code is provided as-is for deployment convenience.

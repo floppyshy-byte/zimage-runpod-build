@@ -1,4 +1,4 @@
-"""Shared helpers for Z-Image image-loading custom nodes."""
+"""Shared helpers for RunPod ComfyUI image-loading custom nodes."""
 
 import base64
 import mimetypes
@@ -16,7 +16,7 @@ def _write_temp_image(data: bytes, suffix: str = ".png") -> str:
     """Write image bytes to ComfyUI's input directory and return the basename."""
     input_dir = folder_paths.get_input_directory()
     os.makedirs(input_dir, exist_ok=True)
-    name = f"zimg_{uuid.uuid4().hex[:12]}{suffix}"
+    name = f"comfy_worker_{uuid.uuid4().hex[:12]}{suffix}"
     path = os.path.join(input_dir, name)
     with open(path, "wb") as f:
         f.write(data)

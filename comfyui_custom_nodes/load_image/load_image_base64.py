@@ -6,6 +6,21 @@ from .shared import _load_image_tensor, _write_temp_image
 
 
 class LoadImageBase64:
+    """Load an image from a base64-encoded string.
+
+    Usage:
+        Connect a STRING output containing base64 image data to the
+        ``image_base64`` input. Data-URI prefixes such as
+        ``data:image/png;base64,`` are stripped automatically.
+
+    Inputs:
+        image_base64 (STRING): A base64-encoded PNG, JPEG, WEBP, or GIF.
+            Multi-line text widget.
+
+    Outputs:
+        image (IMAGE): The decoded image as a ComfyUI IMAGE tensor.
+        mask (MASK): Alpha mask, or a blank mask if the image has no alpha.
+    """
     @classmethod
     def INPUT_TYPES(cls):
         return {

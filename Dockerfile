@@ -3,7 +3,7 @@ FROM runpod/worker-comfyui:5.8.5-base
 # Prevent custom nodes from auto-downloading models during build
 RUN touch /comfyui/custom_nodes/skip_download_model
 
-# ── Z-Image specific custom nodes ────────────────────────────────────────────
+# ── Local custom nodes ───────────────────────────────────────────────────────
 
 # ComfyUI-GGUF — supports GGUF quantized models (Q5_K_S, etc.) for low VRAM
 RUN cd /comfyui/custom_nodes && \
@@ -11,7 +11,7 @@ RUN cd /comfyui/custom_nodes && \
     cd ComfyUI-GGUF && \
     pip install -r requirements.txt -q
 
-# Local Z-Image custom nodes
+# Local custom nodes
 COPY comfyui_custom_nodes /comfyui/custom_nodes/comfyui_custom_nodes
 
 # ── HANDLER + SETUP ─────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir cryptography
 
 # Override the base image handler with our custom one
 COPY handler.py /handler.py
-COPY zimage_worker /zimage_worker
+COPY comfy_worker /comfy_worker
 
 # Pre-start hook: runs model setup before the base image starts ComfyUI
 COPY pre-start.sh /pre-start.sh
