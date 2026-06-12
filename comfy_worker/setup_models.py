@@ -16,6 +16,7 @@ Any directory tree is preserved; only files are symlinked, so ComfyUI sees the
 cached models in the standard locations without copying them.
 """
 
+import os
 from pathlib import Path
 
 from .env import env
