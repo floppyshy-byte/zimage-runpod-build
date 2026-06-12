@@ -11,6 +11,9 @@ RUN cd /comfyui/custom_nodes && \
     cd ComfyUI-GGUF && \
     pip install -r requirements.txt -q
 
+# Local Z-Image custom nodes
+COPY comfyui_custom_nodes /comfyui/custom_nodes/comfyui_custom_nodes
+
 # ── HANDLER + SETUP ─────────────────────────────────────────────────────────
 
 # Install cryptography for AES-256-GCM payload encryption
@@ -18,10 +21,11 @@ RUN pip install --no-cache-dir cryptography
 
 # Override the base image handler with our custom one
 COPY handler.py /handler.py
+COPY zimage_worker /zimage_worker
 
-# Model setup script: symlinks pre-cached HF models into ComfyUI paths
-COPY model-setup.sh /model-setup.sh
-RUN chmod +x /model-setup.sh
+# Pre-start hook: runs model setup before the base image starts ComfyUI
+COPY pre-start.sh /pre-start.sh
+RUN chmod +x /pre-start.sh
 
-# Wrap the original startup so models are linked before ComfyUI starts
-ENTRYPOINT ["/model-setup.sh"]
+# Wrap the original startup so setup runs before ComfyUI starts
+ENTRYPOINT ["/pre-start.sh"]
