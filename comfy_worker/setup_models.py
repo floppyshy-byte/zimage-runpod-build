@@ -64,13 +64,11 @@ def resolve_cache_dir() -> Path | None:
 
 def is_junk(path: Path) -> bool:
     """Return True for files ComfyUI should not scan."""
-    if path.suffix.lower() in JUNK_SUFFIXES:
-        return True
-    if path.name in JUNK_NAMES:
-        return True
-    if any(part.startswith(".git") for part in path.parts):
-        return True
-    return False
+    return (
+        path.suffix.lower() in JUNK_SUFFIXES
+        or path.name in JUNK_NAMES
+        or any(part.startswith(".git") for part in path.parts)
+    )
 
 
 def mirror_tree(cache_dir: Path, target_base: Path) -> None:

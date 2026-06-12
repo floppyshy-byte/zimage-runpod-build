@@ -1,6 +1,5 @@
 """Shared helpers for RunPod ComfyUI image-loading custom nodes."""
 
-import base64
 import mimetypes
 import os
 import uuid

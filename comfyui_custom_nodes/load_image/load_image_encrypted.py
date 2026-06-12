@@ -29,6 +29,7 @@ class LoadImageEncrypted:
         image (IMAGE): The decoded image as a ComfyUI IMAGE tensor.
         mask (MASK): Alpha mask, or a blank mask if the image has no alpha.
     """
+
     @classmethod
     def INPUT_TYPES(cls):
         return {

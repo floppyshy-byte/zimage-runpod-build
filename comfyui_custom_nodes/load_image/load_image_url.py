@@ -21,6 +21,7 @@ class LoadImageUrl:
         image (IMAGE): The downloaded image as a ComfyUI IMAGE tensor.
         mask (MASK): Alpha mask, or a blank mask if the image has no alpha.
     """
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -37,9 +38,7 @@ class LoadImageUrl:
     def load_image_url(self, url: str):
         req = Request(
             url.strip(),
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; RunPod-ComfyUI-Worker/1.0)"
-            },
+            headers={"User-Agent": "Mozilla/5.0 (compatible; RunPod-ComfyUI-Worker/1.0)"},
         )
 
         try:

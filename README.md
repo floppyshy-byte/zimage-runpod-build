@@ -26,6 +26,8 @@ huggingface-cli upload your-username/comfy-models loras/your_lora.safetensors
 
 The model-setup script mirrors this tree into `/comfyui/models/` at startup, so any ComfyUI model directory (e.g. `unet/`, `checkpoints/`, `clip/`, `loras/`) is supported automatically.
 
+If you need additional model search paths, place an `extra_model_paths.yaml` file at the root of your HF model repo (so it appears at `/comfyui/models/extra_model_paths.yaml`). The `pre-start.sh` hook will symlink it to `/comfyui/extra_model_paths.yaml` before ComfyUI starts.
+
 ### 2. Build the Docker Image
 
 Push to this repo's `main` branch — GitHub Actions will build and push to GHCR automatically.
@@ -153,12 +155,25 @@ Decrypts an AES-256-GCM encrypted payload with `COMFY_ENCRYPTION_KEY`, then dele
 
 For GPUs with limited VRAM, use GGUF quantized models with the pre-installed `ComfyUI-GGUF` custom node. Use the `GGUFModelLoader` and `GGUFCLIPLoader` nodes in your workflow.
 
+## Development
+
+This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting. Configuration lives in `pyproject.toml`.
+
+```bash
+ruff check .
+ruff format --check .   # or `ruff format .` to apply fixes
+```
+
+Both checks should pass before opening a PR.
+
 ## Project Structure
 
 ```
 .
 ├── Dockerfile                  # ComfyUI base image + custom nodes
 ├── handler.py                  # Thin RunPod serverless entrypoint
+├── pyproject.toml              # Ruff linter/formatter configuration
+├── CLAUDE.md                   # Project conventions for Claude Code
 ├── comfyui_custom_nodes/       # ComfyUI custom nodes
 │   └── load_image/
 │       ├── __init__.py

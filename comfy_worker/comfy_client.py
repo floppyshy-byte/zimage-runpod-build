@@ -25,7 +25,7 @@ class ComfyClient:
                 return
             except Exception:
                 time.sleep(2)
-        print("[handler] FATAL: ComfyUI did not start within %ds, killing container" % timeout)
+        print(f"[handler] FATAL: ComfyUI did not start within {timeout}s, killing container")
         os._exit(1)
 
     def upload_image(self, name: str, image_b64: str) -> None:
@@ -38,10 +38,14 @@ class ComfyClient:
         img_bytes = base64.b64decode(image_b64)
         boundary = "runpod-upload-boundary"
         body = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="image"; filename="{name}"\r\n'
-            f"Content-Type: image/png\r\n\r\n"
-        ).encode() + img_bytes + f"\r\n--{boundary}--\r\n".encode()
+            (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="image"; filename="{name}"\r\n'
+                f"Content-Type: image/png\r\n\r\n"
+            ).encode()
+            + img_bytes
+            + f"\r\n--{boundary}--\r\n".encode()
+        )
         req = urllib.request.Request(
             f"{self.base_url}/upload/image",
             data=body,
