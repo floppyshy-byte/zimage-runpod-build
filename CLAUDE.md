@@ -14,9 +14,10 @@ A generic [RunPod](https://www.runpod.io/) serverless worker for [ComfyUI](https
 - `comfy_worker/crypto.py` — AES-256-GCM encryption helpers.
 - `comfy_worker/env.py` — Centralized environment variables.
 - `comfy_worker/setup_models.py` — Mirrors HF cache into `/comfyui/models` via symlinks.
+- `comfy_worker/model_downloader.py` — Runtime LoRA downloader; skips files already present in the model cache.
 - `comfyui_custom_nodes/load_image/` — Custom ComfyUI nodes for base64/URL/encrypted images.
 - `pre-start.sh` — Pre-start hook: links `extra_model_paths.yaml` if present, runs model setup, then execs `/start.sh`.
-- `Dockerfile` — Builds on the official RunPod ComfyUI base image.
+- `Dockerfile` — Builds on the official RunPod ComfyUI base image; includes GGUF support and shared nodes used by prompt-studio / ModelRouter workflows (`LoRA Stacker`, `KSampler //Inspire`, Comfyroll nodes).
 - `.github/workflows/docker-build.yml` — CI/CD to GHCR.
 
 ## Development conventions

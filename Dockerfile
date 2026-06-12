@@ -3,13 +3,27 @@ FROM runpod/worker-comfyui:5.8.5-base
 # Prevent custom nodes from auto-downloading models during build
 RUN touch /comfyui/custom_nodes/skip_download_model
 
-# ── Local custom nodes ───────────────────────────────────────────────────────
+# ── CUSTOM NODES ─────────────────────────────────────────────────────────────
 
 # ComfyUI-GGUF — supports GGUF quantized models (Q5_K_S, etc.) for low VRAM
 RUN cd /comfyui/custom_nodes && \
     git clone https://github.com/city96/ComfyUI-GGUF && \
     cd ComfyUI-GGUF && \
     pip install -r requirements.txt -q
+
+# Shared nodes required by prompt-studio / ModelRouter workflows
+RUN cd /comfyui/custom_nodes && \
+    git clone https://github.com/ltdrdata/ComfyUI-Inspire-Pack && \
+    cd ComfyUI-Inspire-Pack && \
+    pip install -r requirements.txt -q
+
+RUN cd /comfyui/custom_nodes && \
+    git clone https://github.com/jags111/efficiency-nodes-comfyui && \
+    cd efficiency-nodes-comfyui && \
+    pip install -r requirements.txt -q
+
+RUN cd /comfyui/custom_nodes && \
+    git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes
 
 # Local custom nodes
 COPY comfyui_custom_nodes /comfyui/custom_nodes/comfyui_custom_nodes
